@@ -5,6 +5,7 @@ import os
 import h5py
 import tensorflow as tf
 import numpy as np
+import data_load as dl
 from train.basic_train import BasicTrain
 from metrics.metrics import Metrics
 from utils.reporter import Reporter
@@ -42,8 +43,8 @@ class TrainPsy(BasicTrain):
                                     'train-loss-per-epoch', 'val-loss-per-epoch',
                                     'train-acc-per-epoch', 'val-acc-per-epoch']
         self.images_summary_tags = [
-            ('train_prediction_sample', [None, self.params.img_height, self.params.img_width * 2, 3]),
-            ('val_prediction_sample', [None, self.params.img_height, self.params.img_width * 2, 3])]
+            ('train_prediction_sample', [None, self.params.img_height, self.params.img_width * 2, self.args.num_channels]),
+            ('val_prediction_sample', [None, self.params.img_height, self.params.img_width * 2, self.args.num_channels])]
         self.summary_tags = []
         self.summary_placeholders = {}
         self.summary_ops = {}
@@ -63,7 +64,9 @@ class TrainPsy(BasicTrain):
         elif self.args.mode == 'test':
             self.reporter = Reporter(self.args.out_dir + 'report_test.json', self.args)
             ##################################################################################
-    
+        train_seq_folder = self.args.data_dir + 'train_seq'
+        self.train_dataset = dl.load_datase(train_seq_folder, self.args.batch_size)
+        self.dataset_iterator = self.train_dataset.make_one_shot_iterator()
     
     def init_summaries(self):
         """
@@ -110,15 +113,15 @@ class TrainPsy(BasicTrain):
             for _ in tt:
                 # get the cur_it for the summary
                 cur_it = self.model.global_step_tensor.eval(self.sess)
-                iterator = self.train_dataset.make_one_shot_iterator()
-                next_x, next_y = iterator.get_next()
-                self.sess.run(next_x, next_y)
+                next_batch = self.dataset_iterator.get_next()
+                x_batch, y_batch = self.sess.run(next_batch)
+                
                 # Feed this variables to the network
                 feed_dict = {self.model.x_pl: x_batch,
                              self.model.y_pl: y_batch,
                              self.model.is_training: True
                              #self.model.curr_learning_rate:curr_lr
-                #             }
+                             }
 
                 # run the feed_forward
                 _, loss, acc, summaries_merged = self.sess.run(
