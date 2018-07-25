@@ -1,0 +1,33 @@
+# Directories arguments
+data_dir: "seq"
+exp_dir:  "unet_depthnet"
+out_dir:  "unet_depthnet"
+
+# Data arguments
+img_height:   720
+img_width:    1280
+num_channels: 1
+num_classes:  26
+
+# Train arguments
+num_epochs: 200
+batch_size: 1
+shuffle: True
+data_mode: "experiment"
+save_every: 5
+test_every: 5
+max_to_keep: 2
+weighted_loss: False
+random_cropping: False
+freeze_encoder: False
+
+# Models arguments
+learning_rate:   0.0001
+weight_decay: 0.0005
+bias : 0.0
+batchnorm_enabled: True
+#pretrained_path: "pretrained_weights/mobilenet_v1.pkl"
+
+# Misc arguments
+verbose: False
+
