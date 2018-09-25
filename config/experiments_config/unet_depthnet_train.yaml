@@ -1,13 +1,14 @@
 # Directories arguments
-data_dir: "seq"
+data_dir: "synthetic_seq"
 exp_dir:  "unet_depthnet"
 out_dir:  "unet_depthnet"
 
 # Data arguments
-img_height:   720
-img_width:    1280
+# image dimensions are reduced to enable run on my pc
+img_height:   360
+img_width:    640
 num_channels: 1
-num_classes:  26
+num_classes:  28
 
 # Train arguments
 num_epochs: 200
@@ -15,9 +16,9 @@ batch_size: 1
 shuffle: True
 data_mode: "experiment"
 save_every: 5
-test_every: 5
+test_every: 1 #5
 max_to_keep: 2
-weighted_loss: False
+weighted_loss: False  #consider this
 random_cropping: False
 freeze_encoder: False
 

@@ -4,7 +4,7 @@ Any segmentation model will inherit from it .
 You can override any function you want
 """
 
-from utils.img_utils import decode_labels
+import utils.img_utils as imu
 import numpy as np
 import tensorflow as tf
 
@@ -125,6 +125,7 @@ class BasicModel:
         with tf.name_scope('output'):
             self.out_softmax = tf.nn.softmax(self.logits)
             self.out_argmax = tf.argmax(self.out_softmax, axis=3, output_type=tf.int32)
+            self.out_conf =  tf.reduce_max(self.out_softmax, axis = 3)
 
     def get_class_weighting(self):
         self.wghts = tf.one_hot(self.y_pl, dtype='float32', depth=self.params.num_classes) * \
@@ -171,11 +172,15 @@ class BasicModel:
             self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.y_pl, self.out_argmax), tf.float32))
 
         with tf.name_scope('segmented_output'):
-            input_summary = tf.cast(self.x_pl, tf.uint8)
-            # labels_summary = tf.py_func(decode_labels, [self.y_pl, self.params.num_classes], tf.uint8)
-            preds_summary = tf.py_func(decode_labels, [self.out_argmax, self.params.num_classes], tf.uint8)
-            self.segmented_summary = tf.concat(axis=2, values=[input_summary,
-                                                               preds_summary])  # Concatenate row-wise
+            #input_summary = tf.cast(self.x_pl, tf.uint8)
+            input_summary = tf.py_func(imu.decode_input, [self.x_pl], tf.uint8)
+            labels_summary = tf.py_func(imu.decode_labels, [self.y_pl, self.params.num_classes], tf.uint8)
+            preds_summary = tf.py_func(imu.decode_labels, [self.out_argmax, self.params.num_classes], tf.uint8)
+            conf_summary = tf.py_func(imu.decode_conf, [self.out_argmax], tf.uint8)
+            img_1 = tf.concat(axis=1, values=[input_summary,labels_summary])
+            img_2 = tf.concat(axis=1, values=[preds_summary,conf_summary])
+            self.segmented_summary = tf.concat(axis=2, values = [img_1, img_2])
+            self.test_segmented_summary = tf.concat(axis = 1, values = [preds_summary, conf_summary])
 
         # Every step evaluate these summaries
         with tf.name_scope('train-summary'):

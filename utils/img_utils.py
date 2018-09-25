@@ -1,51 +1,42 @@
 from PIL import Image
 import numpy as np
+import matplotlib.cm as cm
 
 # colour map
-label_colours_global = [(128, 64, 128),  # 'road'
-                        (244, 35, 232),  # 'sidewalk'
-                        (70, 70, 70),  # 'building'
-                        (102, 102, 156),  # 'wall'
-                        (190, 153, 153),  # 'fence'
-                        (153, 153, 153),  # 'pole'
-                        (250, 170, 30),  # 'traffic light'
-                        (220, 220, 0),  # 'traffic sign'
-                        (107, 142, 35),  # 'vegetation'
-                        (152, 251, 152),  # 'terrain'
-                        (70, 130, 180),  # 'sky'
-                        (220, 20, 60),  # 'person'
-                        (255, 0, 0),  # 'rider'
-                        (0, 0, 142),  # 'car'
-                        (0, 0, 70),  # 'truck'
-                        (0, 60, 100),  # 'bus'
-                        (0, 80, 100),  # 'train'
-                        (0, 0, 230),  # 'motorcycle'
-                        (119, 11, 32),  # 'bicycle'
-                        (0, 0, 0), ]  # None
-#label_colours_global = [(0,0,0),
-#                        (0,0,0),
-#                        (128, 64, 128),  # 'road'
-#                        (244, 35, 232),  # 'sidewalk'
-#                        (70, 70, 70),  # 'building'
-#                        (102, 102, 156),  # 'wall'
-#                        (190, 153, 153),  # 'fence'
-#                        (153, 153, 153),  # 'pole'
-#                        (250, 170, 30),  # 'traffic light'
-#                        (220, 220, 0),  # 'traffic sign'
-#                        (107, 142, 35),  # 'vegetation'
-#                        (152, 251, 152),  # 'terrain'
-#                        (70, 130, 180),  # 'sky'
-#                        (220, 20, 60),  # 'person'
-#                        (255, 0, 0),  # 'rider'
-#                        (0, 0, 142),  # 'car'
-#                        (0, 0, 70),  # 'truck'
-#                        (0, 60, 100),  # 'bus'
-#                        (0, 80, 100),  # 'train'
-#                        (0, 0, 230),  # 'motorcycle'
-#                        (119, 11, 32),  # 'bicycle'
-#                        ]  # None
-
-
+label_colours_global = [(255,255,255),  # 'nal'
+                        (255, 106, 0),  # 'body'
+                        (255, 0, 0),  # 'neck'
+                        #right arm
+                        (255, 178, 127),
+                        (255, 127, 127),
+                        (182, 255, 0),
+                        (218, 255, 127),
+                        (255, 216, 0),
+                        (107, 63, 127),
+                        #left arm
+                        (255, 233, 127),
+                        (0, 148, 255),
+                        (255, 0, 110),
+                        (48, 48, 48),
+                        (76, 255, 0),
+                        (63, 73, 127),
+                        #head, hips
+                        (0, 255, 33),
+                        (0, 255, 255),
+                        #right leg
+                        (0, 255, 144),
+                        (127, 116, 63),
+                        (127, 201, 255),
+                        (165, 255, 127),
+                        (214, 127, 255),
+                        #left leg
+                        (178, 0, 255),
+                        (127, 63, 63),
+                        (127, 255, 255),
+                        (127, 255, 197),
+                        (161, 127, 255),
+                        #not a user
+                        (72, 0, 255),]
 
 def decode_labels(mask, num_classes):
     """Decode batch of segmentation masks.
@@ -60,16 +51,6 @@ def decode_labels(mask, num_classes):
 #    num_classes= num_classes+1
     # init colours array
     colours = label_colours_global
-
-    # if num_classes == 7:
-    #     colours = label_colours_scala_7
-    # elif num_classes == 6:
-    #     colours = label_colours_scala_6
-    # elif num_classes == 5:
-    #     colours = label_colours_scala_5
-    # else:
-    #     print("ERROR this number of classes don't have a defined colours")
-    #     exit(-1)
 
     # Check the length of the colours with num_classes
     assert (num_classes == len(colours)), 'num_classes %d should be equal the number colours %d.' % (num_classes, len(colours))
@@ -86,4 +67,21 @@ def decode_labels(mask, num_classes):
                 if k < num_classes:
                     pixels[k_, j_] = colours[k]
         outputs[i] = np.array(img)
+    return outputs
+
+def decode_input(imm):
+    n, h, w, _ = imm.shape
+    outputs = np.zeros((n, h, w, 3), dtype=np.uint8)
+    for i in range(n):
+        for c in range(3):
+            outputs[i,:,:,c] = np.array(imm[i, :, :, 0])
+    return outputs
+
+def decode_conf(imm):
+    n, h, w = imm.shape
+    outputs = np.zeros((n, h, w, 3), dtype=np.uint8)
+    cmap = cm.get_cmap('jet')
+    for i in range(n):
+        colored = np.round(256 * cmap(np.array(imm[i, :, :])))
+        outputs[i,:,:,:] =  colored[:,:,:3]
     return outputs

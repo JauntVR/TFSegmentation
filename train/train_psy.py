@@ -43,8 +43,10 @@ class TrainPsy(BasicTrain):
                                     'train-loss-per-epoch', 'val-loss-per-epoch',
                                     'train-acc-per-epoch', 'val-acc-per-epoch']
         self.images_summary_tags = [
-            ('train_prediction_sample', [None, self.params.img_height, self.params.img_width * 2, self.args.num_channels]),
-            ('val_prediction_sample', [None, self.params.img_height, self.params.img_width * 2, self.args.num_channels])]
+            ('train_prediction_sample', [None, self.params.img_height * 2,
+                                         self.params.img_width * 2, 3]),
+            ('val_prediction_sample', [None, self.params.img_height * 2,
+                                       self.params.img_width, 3])]
         self.summary_tags = []
         self.summary_placeholders = {}
         self.summary_ops = {}
@@ -52,9 +54,10 @@ class TrainPsy(BasicTrain):
         self.init_summaries()
         # Create summary writer
         self.summary_writer = tf.summary.FileWriter(self.args.summary_dir, self.sess.graph)
-        
-        self.num_iterations_training_per_epoch = 1000#self.train_data_len // self.args.batch_size
-        
+        #TODO
+        #!!! self.num_iterations_training_per_epoch should be larger to be meaninfull !!!
+        self.num_iterations_training_per_epoch = 5#self.train_data_len // self.args.batch_size
+        self.num_iterations_validation_per_epoch = 1
         ##################################################################################
         # Init metrics class
         self.metrics = Metrics(self.args.num_classes)
@@ -65,9 +68,20 @@ class TrainPsy(BasicTrain):
             self.reporter = Reporter(self.args.out_dir + 'report_test.json', self.args)
             ##################################################################################
         train_seq_folder = self.args.data_dir + 'train_seq'
-        self.train_dataset = dl.load_datase(train_seq_folder, self.args.batch_size)
-        self.dataset_iterator = self.train_dataset.make_one_shot_iterator()
-    
+        test_seq_folder = self.args.data_dir + 'test_seq'
+        valid_seq_folder = test_seq_folder #TODO create validation folder
+        self.train_dataset = dl.load_dataset(train_seq_folder,
+                                             self.args.batch_size,
+                                             self.args.img_height,
+                                             self.args.img_width)
+        self.valid_dataset = dl.load_dataset(valid_seq_folder,
+                                             self.args.batch_size,
+                                             self.args.img_height,
+                                             self.args.img_width)
+
+        self.dataset_train_iterator = self.train_dataset.make_one_shot_iterator()
+        self.dataset_valid_iterator = self.valid_dataset.make_one_shot_iterator()
+
     def init_summaries(self):
         """
         Create the summary part of the graph
@@ -103,6 +117,7 @@ class TrainPsy(BasicTrain):
     def train(self):
         print("Training mode will begin NOW ..")
         # curr_lr= self.model.args.learning_rate
+        next_element = self.dataset_train_iterator.get_next()
         for cur_epoch in range(self.model.global_epoch_tensor.eval(self.sess) + 1, self.args.num_epochs + 1, 1):
 
             tt = tqdm(range(self.num_iterations_training_per_epoch), total=self.num_iterations_training_per_epoch,
@@ -110,10 +125,10 @@ class TrainPsy(BasicTrain):
             # init acc and loss lists
             loss_list = []
             acc_list = []
-            for _ in tt:
+            for cur_iteration in tt:
                 # get the cur_it for the summary
                 cur_it = self.model.global_step_tensor.eval(self.sess)
-                next_batch = self.dataset_iterator.get_next()
+                next_batch = next_element
                 x_batch, y_batch = self.sess.run(next_batch)
                 
                 # Feed this variables to the network
@@ -122,23 +137,29 @@ class TrainPsy(BasicTrain):
                              self.model.is_training: True
                              #self.model.curr_learning_rate:curr_lr
                              }
+                if cur_iteration < self.num_iterations_training_per_epoch - 1:
+                    # run the feed_forward
+                    _, loss, acc, summaries_merged = self.sess.run(
+                            [self.model.train_op, self.model.loss, self.model.accuracy,
+                             self.model.merged_summaries],
+                             feed_dict=feed_dict)
+                    self.add_summary(cur_it, summaries_merged=summaries_merged)
+                else:
+                    #also get images
+                    _, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
+                            [self.model.train_op, self.model.loss, self.model.accuracy,
+                             self.model.merged_summaries, self.model.segmented_summary],
+                             feed_dict=feed_dict)
+                    #TODO remove this
+                    self.last_input = [x_batch, y_batch]
 
-                # run the feed_forward
-                _, loss, acc, summaries_merged = self.sess.run(
-                    [self.model.train_op, self.model.loss, self.model.accuracy, 
-                     self.model.merged_summaries],
-                    feed_dict=feed_dict)
                 # log loss and acc
                 loss_list += [loss]
                 acc_list += [acc]
-                
-                # Update the Global step
-                self.model.global_step_assign_op.eval(session=self.sess,
-                                                      feed_dict={self.model.global_step_input: cur_it + 1})
 
             total_loss = np.mean(loss_list)
             total_acc = np.mean(acc_list)
-            
+
             # summarize
             summaries_dict = dict()
             summaries_dict['train-loss-per-epoch'] = total_loss
@@ -146,12 +167,16 @@ class TrainPsy(BasicTrain):
 
             if self.args.data_mode != 'experiment_v2':
                 summaries_dict['train_prediction_sample'] = segmented_imgs
-            # self.add_summary(cur_it, summaries_dict=summaries_dict, summaries_merged=summaries_merged)
+            self.add_summary(cur_it, summaries_dict=summaries_dict, summaries_merged=summaries_merged)
 
             # report
             self.reporter.report_experiment_statistics('train-acc', 'epoch-' + str(cur_epoch), str(total_acc))
             self.reporter.report_experiment_statistics('train-loss', 'epoch-' + str(cur_epoch), str(total_loss))
             self.reporter.finalize()
+
+            # Update the Global step
+            self.model.global_step_assign_op.eval(session=self.sess,
+                                                  feed_dict={self.model.global_step_input: cur_it + 1})
 
             # Update the Cur Epoch tensor
             # it is the last thing because if it is interrupted it repeat this
@@ -176,7 +201,6 @@ class TrainPsy(BasicTrain):
         
     def test_per_epoch(self, step, epoch):
         print("Validation at step:" + str(step) + " at epoch:" + str(epoch) + " ..")
-
         # init tqdm and get the epoch value
         tt = tqdm(range(self.num_iterations_validation_per_epoch), total=self.num_iterations_validation_per_epoch,
                   desc="Val-epoch-" + str(epoch) + "-")
@@ -184,62 +208,63 @@ class TrainPsy(BasicTrain):
         # init acc and loss lists
         loss_list = []
         acc_list = []
-        inf_list = []
 
         # reset metrics
         self.metrics.reset()
 
         # get the maximum iou to compare with and save the best model
         max_iou = self.model.best_iou_tensor.eval(self.sess)
-
+        next_element = self.dataset_valid_iterator.get_next()
         # loop by the number of iterations
-        for _ in tt:
-            # load minibatches
-            x_batch = self.val_data['X'][idx:idx + self.args.batch_size]
-            y_batch = self.val_data['Y'][idx:idx + self.args.batch_size]
-            if self.args.data_mode == 'experiment_v2':
-                y_batch_large = self.val_data['Y_large'][idx:idx + self.args.batch_size]
-
-            # update idx of minibatch
-            idx += self.args.batch_size
-
+        for cur_iteration in tt:
             # Feed this variables to the network
+            #next_batch = next_element
+            #x_batch, y_batch = self.sess.run(next_batch)
+            x_batch, y_batch = self.last_input #TODO replace with prev lines
             feed_dict = {self.model.x_pl: x_batch,
                          self.model.y_pl: y_batch,
                          self.model.is_training: False
                          }
 
-            start = time.time()
             # run the feed_forward
+            if cur_iteration < self.num_iterations_validation_per_epoch - 1:
+                out_argmax, loss, acc, summaries_merged = self.sess.run(
+                        [self.model.out_argmax,
+                         self.model.loss, self.model.accuracy,
+                         self.model.merged_summaries],
+                         feed_dict=feed_dict)
+            else:
+                out_argmax, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
+                        [self.test_model.out_argmax,
+                         self.test_model.loss, self.model.accuracy,
+                         self.test_model.merged_summaries,
+                         self.test_model.test_segmented_summary],
+                         feed_dict=feed_dict)
 
-            out_argmax, loss, acc, summaries_merged = self.sess.run(
-                [self.model.out_argmax, self.model.loss, self.model.accuracy, self.model.merged_summaries],
-                feed_dict=feed_dict)
-
-            end = time.time()
             # log loss and acc
             loss_list += [loss]
             acc_list += [acc]
-            inf_list += [end - start]
 
             # log metrics
             self.metrics.update_metrics_batch(out_argmax, y_batch)
-
 
         # mean over batches
         total_acc = np.mean(acc_list)
         mean_iou = self.metrics.compute_final_metrics(self.num_iterations_validation_per_epoch)
         mean_iou_arr = self.metrics.iou
-        mean_inference = str(np.mean(inf_list)) + '-seconds'
+
         # summarize
         summaries_dict = dict()
         summaries_dict['val-acc-per-epoch'] = total_acc
         summaries_dict['mean_iou_on_val'] = mean_iou
+        summaries_dict['val_prediction_sample'] = segmented_imgs
+        cur_it = self.model.global_step_tensor.eval(self.sess)
+        self.add_summary(cur_it, summaries_dict=summaries_dict, summaries_merged=summaries_merged)
 
         # report
         self.reporter.report_experiment_statistics('validation-acc', 'epoch-' + str(epoch), str(total_acc))
-        self.reporter.report_experiment_statistics('avg_inference_time_on_validation', 'epoch-' + str(epoch),
-                                                   str(mean_inference))
+#        self.reporter.report_experiment_statistics('avg_inference_time_on_validation', 'epoch-' + str(epoch),
+#                                                   str(mean_inference))
         self.reporter.report_experiment_validation_iou('epoch-' + str(epoch), str(mean_iou), mean_iou_arr)
         self.reporter.finalize()
 
