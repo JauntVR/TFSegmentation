@@ -1,12 +1,12 @@
 # Directories arguments
 data_dir: "synthetic_seq"
-exp_dir:  "unet_depthnet"
-out_dir:  "unet_depthnet"
+exp_dir:  "unet_depthnet_small"
+out_dir:  "unet_depthnet_small"
 
 # Data arguments
 # image dimensions are reduced to enable run on my pc
-img_height:   740
-img_width:    1280
+img_height:   125
+img_width:    125
 num_channels: 1
 num_classes:  28
 

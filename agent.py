@@ -42,6 +42,7 @@ class Agent:
     def build_model(self):
 
         if self.mode == 'train' or self.mode == 'overfit':  # validation phase
+            print('Building Train Network')
             with tf.variable_scope('network') as scope:
                 self.model = self.model(self.args)
                 self.model.build()

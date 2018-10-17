@@ -370,7 +370,7 @@ def depthwise_separable_conv2d(name, x, w_depthwise=None, w_pointwise=None, widt
                                kernel_size=(3, 3),
                                padding='SAME', stride=(1, 1),
                                initializer=tf.contrib.layers.xavier_initializer(), l2_strength=0.0, biases=(0.0, 0.0),
-                               activation=None, batchnorm_enabled=True,
+                               dropout_keep_prob = -1, activation=None, batchnorm_enabled=True,
                                is_training=True):
     total_num_filters = int(round(num_filters * width_multiplier))
     with tf.variable_scope(name) as scope:
@@ -382,7 +382,7 @@ def depthwise_separable_conv2d(name, x, w_depthwise=None, w_pointwise=None, widt
 
         conv_o = conv2d('pointwise', x=conv_a, w=w_pointwise, num_filters=total_num_filters, kernel_size=(1, 1),
                         initializer=initializer, l2_strength=l2_strength, bias=biases[1], activation=activation,
-                        batchnorm_enabled=batchnorm_enabled, is_training=is_training)
+                        batchnorm_enabled=batchnorm_enabled, is_training=is_training, dropout_keep_prob = dropout_keep_prob)
 
     return conv_o
 

@@ -70,13 +70,18 @@ def load_dataset(train_seq_folder, batch_size, h, w):
     for train_seq_name in train_seq_files:
         train_seq = h5py.File(train_seq_name, "r")
         num_cameras = train_seq['INFO']['NUM_CAMERAS'].value[0]
-        num_frames = train_seq['INFO']['COUNT'].value[0]
+        num_frames = train_seq['INFO']['COUNT'].value[0] * 5
         train_seq.close()
         for frame_idx in range(0, num_frames, 5):
             for cam_idx in range(num_cameras):
                 filename_str = train_seq_name + '__' + 'FRAME{:04d}/RAW/CAM{:d}/'.format(frame_idx, cam_idx)
                 filenames.append(filename_str)
-
+    
+    num_images = len(filenames)
+    int_num_images = int(np.floor(num_images / batch_size) * batch_size)
+    if num_images != int_num_images :
+        del filenames[int_num_images:]
+    
     labels = [0]*len(filenames)
     dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
     dataset = dataset.shuffle(buffer_size=10000)

@@ -56,6 +56,7 @@ def decode_labels(mask, num_classes):
     assert (num_classes == len(colours)), 'num_classes %d should be equal the number colours %d.' % (num_classes, len(colours))
     # Get the shape of the mask
     n, h, w = mask.shape
+    n = min(n,3)
     # Create the output numpy array
     outputs = np.zeros((n, h, w, 3), dtype=np.uint8)
     # Loop on images
@@ -71,6 +72,7 @@ def decode_labels(mask, num_classes):
 
 def decode_input(imm):
     n, h, w, _ = imm.shape
+    n = min(n,3)
     outputs = np.zeros((n, h, w, 3), dtype=np.uint8)
     for i in range(n):
         for c in range(3):
@@ -79,6 +81,7 @@ def decode_input(imm):
 
 def decode_conf(imm):
     n, h, w = imm.shape
+    n = min(n,3)
     outputs = np.zeros((n, h, w, 3), dtype=np.uint8)
     cmap = cm.get_cmap('jet')
     for i in range(n):

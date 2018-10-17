@@ -5,8 +5,8 @@ import os
 import h5py
 import tensorflow as tf
 import numpy as np
-import data_load as dl
 from train.basic_train import BasicTrain
+from data.data_load_psy import load_dataset
 from metrics.metrics import Metrics
 from utils.reporter import Reporter
 from utils.misc import timeit
@@ -44,7 +44,7 @@ class TrainPsy(BasicTrain):
                                     'train-acc-per-epoch', 'val-acc-per-epoch']
         self.images_summary_tags = [
             ('train_prediction_sample', [None, self.params.img_height * 2,
-                                         self.params.img_width * 2, 3]),
+                                         self.params.img_width, 3]),
             ('val_prediction_sample', [None, self.params.img_height * 2,
                                        self.params.img_width, 3])]
         self.summary_tags = []
@@ -54,9 +54,7 @@ class TrainPsy(BasicTrain):
         self.init_summaries()
         # Create summary writer
         self.summary_writer = tf.summary.FileWriter(self.args.summary_dir, self.sess.graph)
-        #TODO
-        #!!! self.num_iterations_training_per_epoch should be larger to be meaninfull !!!
-        self.num_iterations_training_per_epoch = 5#self.train_data_len // self.args.batch_size
+        self.num_iterations_training_per_epoch = int((self.args.train_data_len - 1) / self.args.batch_size) + 1
         self.num_iterations_validation_per_epoch = 1
         ##################################################################################
         # Init metrics class
@@ -70,11 +68,11 @@ class TrainPsy(BasicTrain):
         train_seq_folder = self.args.data_dir + 'train_seq'
         test_seq_folder = self.args.data_dir + 'test_seq'
         valid_seq_folder = test_seq_folder #TODO create validation folder
-        self.train_dataset = dl.load_dataset(train_seq_folder,
+        self.train_dataset = load_dataset(train_seq_folder,
                                              self.args.batch_size,
                                              self.args.img_height,
                                              self.args.img_width)
-        self.valid_dataset = dl.load_dataset(valid_seq_folder,
+        self.valid_dataset = load_dataset(valid_seq_folder,
                                              self.args.batch_size,
                                              self.args.img_height,
                                              self.args.img_width)
@@ -137,7 +135,9 @@ class TrainPsy(BasicTrain):
                              self.model.is_training: True
                              #self.model.curr_learning_rate:curr_lr
                              }
-                if cur_iteration < self.num_iterations_training_per_epoch - 1:
+                save_image = (cur_iteration == self.num_iterations_training_per_epoch - 1) and \
+                             (cur_epoch % self.args.save_every == 0)  
+                if not save_image:
                     # run the feed_forward
                     _, loss, acc, summaries_merged = self.sess.run(
                             [self.model.train_op, self.model.loss, self.model.accuracy,
@@ -150,8 +150,6 @@ class TrainPsy(BasicTrain):
                             [self.model.train_op, self.model.loss, self.model.accuracy,
                              self.model.merged_summaries, self.model.segmented_summary],
                              feed_dict=feed_dict)
-                    #TODO remove this
-                    self.last_input = [x_batch, y_batch]
 
                 # log loss and acc
                 loss_list += [loss]
@@ -164,8 +162,7 @@ class TrainPsy(BasicTrain):
             summaries_dict = dict()
             summaries_dict['train-loss-per-epoch'] = total_loss
             summaries_dict['train-acc-per-epoch'] = total_acc
-
-            if self.args.data_mode != 'experiment_v2':
+            if cur_epoch % self.args.save_every == 0:
                 summaries_dict['train_prediction_sample'] = segmented_imgs
             self.add_summary(cur_it, summaries_dict=summaries_dict, summaries_merged=summaries_merged)
 
@@ -218,9 +215,8 @@ class TrainPsy(BasicTrain):
         # loop by the number of iterations
         for cur_iteration in tt:
             # Feed this variables to the network
-            #next_batch = next_element
-            #x_batch, y_batch = self.sess.run(next_batch)
-            x_batch, y_batch = self.last_input #TODO replace with prev lines
+            next_batch = next_element
+            x_batch, y_batch = self.sess.run(next_batch)
             feed_dict = {self.model.x_pl: x_batch,
                          self.model.y_pl: y_batch,
                          self.model.is_training: False

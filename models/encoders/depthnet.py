@@ -13,6 +13,8 @@ class DepthNet:
                  num_classes,
                  pretrained_path,
                  train_flag,
+                 batchnorm_enabled,
+                 dropout_keep_prob,
                  width_multipler=1.0,
                  weight_decay=5e-4):
 
@@ -20,6 +22,8 @@ class DepthNet:
         self.x_input = x_input
         self.num_classes = num_classes
         self.train_flag = train_flag
+        self.batchnorm_enabled = batchnorm_enabled
+        self.dropout_keep_prob=dropout_keep_prob
         self.wd = weight_decay
         self.pretrained_path = os.path.realpath(os.getcwd()) + "/" + pretrained_path
         self.width_multiplier = width_multipler
@@ -67,91 +71,94 @@ class DepthNet:
 
             self.conv1_1 = conv2d('conv_1', preprocessed_input, num_filters=int(round(32 * self.width_multiplier)),
                                   kernel_size=(3, 3),
-                                  padding='SAME', stride=(2, 2), activation=tf.nn.relu6, batchnorm_enabled=True,
-                                  is_training=self.train_flag, l2_strength=self.wd)
+                                  padding='SAME', stride=(2, 2), activation=tf.nn.relu6,
+                                  batchnorm_enabled=self.batchnorm_enabled,
+                                  is_training=self.train_flag,
+                                  dropout_keep_prob=self.dropout_keep_prob,l2_strength=self.wd)
             
             self._debug(self.conv1_1)
             self.conv2_1 = depthwise_separable_conv2d('conv_2_1', self.conv1_1, width_multiplier=self.width_multiplier,
                                                       num_filters=64, kernel_size=(3, 3), padding='SAME', stride=(1, 1),
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd, activation=tf.nn.relu6)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      l2_strength=self.wd, dropout_keep_prob=self.dropout_keep_prob,
+                                                      activation=tf.nn.relu6)
             self._debug(self.conv2_1)
             self.conv2_2 = depthwise_separable_conv2d('conv_2_2', self.conv2_1, width_multiplier=self.width_multiplier,
                                                       num_filters=128, kernel_size=(3, 3), padding='SAME',
                                                       stride=(2, 2), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv2_2)
             self.conv3_1 = depthwise_separable_conv2d('conv_3_1', self.conv2_2, width_multiplier=self.width_multiplier,
                                                       num_filters=128, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv3_1)
             self.conv3_2 = depthwise_separable_conv2d('conv_3_2', self.conv3_1, width_multiplier=self.width_multiplier,
                                                       num_filters=256, kernel_size=(3, 3), padding='SAME',
                                                       stride=(2, 2), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv3_2)
             self.conv4_1 = depthwise_separable_conv2d('conv_4_1', self.conv3_2, width_multiplier=self.width_multiplier,
                                                       num_filters=256, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv4_1)
             self.conv4_2 = depthwise_separable_conv2d('conv_4_2', self.conv4_1, width_multiplier=self.width_multiplier,
                                                       num_filters=512, kernel_size=(3, 3), padding='SAME',
                                                       stride=(2, 2), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv4_2)
             self.conv5_1 = depthwise_separable_conv2d('conv_5_1', self.conv4_2, width_multiplier=self.width_multiplier,
                                                       num_filters=512, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv5_1)
             self.conv5_2 = depthwise_separable_conv2d('conv_5_2', self.conv5_1, width_multiplier=self.width_multiplier,
                                                       num_filters=512, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv5_2)
             self.conv5_3 = depthwise_separable_conv2d('conv_5_3', self.conv5_2,
                                                       width_multiplier=self.width_multiplier,
                                                       num_filters=512, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv5_3)
             self.conv5_4 = depthwise_separable_conv2d('conv_5_4', self.conv5_3,
                                                       width_multiplier=self.width_multiplier,
                                                       num_filters=512, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv5_4)
             self.conv5_5 = depthwise_separable_conv2d('conv_5_5', self.conv5_4,
                                                       width_multiplier=self.width_multiplier,
                                                       num_filters=512, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv5_5)
             self.conv5_6 = depthwise_separable_conv2d('conv_5_6', self.conv5_5,
                                                       width_multiplier=self.width_multiplier,
                                                       num_filters=1024, kernel_size=(3, 3), padding='SAME',
                                                       stride=(2, 2), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv5_6)
             self.conv6_1 = depthwise_separable_conv2d('conv_6_1', self.conv5_6,
                                                       width_multiplier=self.width_multiplier,
                                                       num_filters=1024, kernel_size=(3, 3), padding='SAME',
                                                       stride=(1, 1), activation=tf.nn.relu6,
-                                                      batchnorm_enabled=True, is_training=self.train_flag,
-                                                      l2_strength=self.wd)
+                                                      batchnorm_enabled=self.batchnorm_enabled, is_training=self.train_flag,
+                                                      dropout_keep_prob=self.dropout_keep_prob, l2_strength=self.wd)
             self._debug(self.conv6_1)
             # Pooling is removed.
             self.score_fr = conv2d('conv_1c_1x1', self.conv6_1, num_filters=self.num_classes, l2_strength=self.wd,
