@@ -33,8 +33,7 @@ def _read_hdf5_func(filename, label, h, w):
     #print(filename_decoded)
     h5_file_name, group_name = filename_decoded.split('__')
     h5_file = h5py.File(h5_file_name, "r")
-    #print(group_name)
-    
+
     # Read depth image
     depth_image_path = group_name + 'Z'
     depth_image = h5_file[depth_image_path].value
@@ -68,31 +67,32 @@ def load_dataset(train_seq_folder, batch_size, h, w):
         train_seq_files.extend(os.path.join(dirpath, x) for x in filenames)
     filenames = []
     for train_seq_name in train_seq_files:
+        if not train_seq_name.endswith(".h5"):
+             continue
         train_seq = h5py.File(train_seq_name, "r")
         num_cameras = train_seq['INFO']['NUM_CAMERAS'].value[0]
-        num_frames = train_seq['INFO']['COUNT'].value[0] * 5
+        key_list = list(train_seq.keys())
         train_seq.close()
-        for frame_idx in range(0, num_frames, 5):
-            for cam_idx in range(num_cameras):
-                filename_str = train_seq_name + '__' + 'FRAME{:04d}/RAW/CAM{:d}/'.format(frame_idx, cam_idx)
-                filenames.append(filename_str)
-    
+        for key in key_list:
+            if "FRAME" in key:
+                for cam_idx in range(num_cameras):
+                    filename_str = train_seq_name + '__' + '{:s}/RAW/CAM{:d}/'.format(key, cam_idx)
+                    filenames.append(filename_str)
+
     num_images = len(filenames)
     int_num_images = int(np.floor(num_images / batch_size) * batch_size)
     if num_images != int_num_images :
         del filenames[int_num_images:]
-    
+
     labels = [0]*len(filenames)
     dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
     dataset = dataset.shuffle(buffer_size=10000)
     dataset = dataset.map(
         lambda filename, label: tuple(tf.py_func(
             _read_hdf5_func, [filename, labels, h, w], [tf.uint8, tf.uint8])), num_parallel_calls=1)
-    
-    
+
+
     dataset = dataset.batch(batch_size)
     dataset = dataset.repeat()
     dataset = dataset.prefetch(1)
-    
     return dataset
-

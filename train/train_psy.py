@@ -11,7 +11,7 @@ from metrics.metrics import Metrics
 from utils.reporter import Reporter
 from utils.misc import timeit
 from utils.average_meter import FPSMeter
-
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from utils.augmentation import flip_randomly_left_right_image_with_annotation, \
     scale_randomly_image_with_annotation_with_fixed_size_output
@@ -22,7 +22,7 @@ class TrainPsy(BasicTrain):
     """
     Trainer class
     """
-            
+
 
     def __init__(self, args, sess, train_model, test_model):
         """
@@ -76,9 +76,14 @@ class TrainPsy(BasicTrain):
                                              self.args.batch_size,
                                              self.args.img_height,
                                              self.args.img_width)
+        self.test_dataset = load_dataset(test_seq_folder,
+                                             self.args.batch_size,
+                                             self.args.img_height,
+                                             self.args.img_width)
 
         self.dataset_train_iterator = self.train_dataset.make_one_shot_iterator()
         self.dataset_valid_iterator = self.valid_dataset.make_one_shot_iterator()
+        self.dataset_test_iterator = self.test_dataset.make_one_shot_iterator()
 
     def init_summaries(self):
         """
@@ -128,7 +133,7 @@ class TrainPsy(BasicTrain):
                 cur_it = self.model.global_step_tensor.eval(self.sess)
                 next_batch = next_element
                 x_batch, y_batch = self.sess.run(next_batch)
-                
+
                 # Feed this variables to the network
                 feed_dict = {self.model.x_pl: x_batch,
                              self.model.y_pl: y_batch,
@@ -136,7 +141,7 @@ class TrainPsy(BasicTrain):
                              #self.model.curr_learning_rate:curr_lr
                              }
                 save_image = (cur_iteration == self.num_iterations_training_per_epoch - 1) and \
-                             (cur_epoch % self.args.save_every == 0)  
+                             (cur_epoch % self.args.save_every == 0)
                 if not save_image:
                     # run the feed_forward
                     _, loss, acc, summaries_merged = self.sess.run(
@@ -195,7 +200,7 @@ class TrainPsy(BasicTrain):
                                     epoch=self.model.global_epoch_tensor.eval(self.sess))
 
         print("Training Finished")
-        
+
     def test_per_epoch(self, step, epoch):
         print("Validation at step:" + str(step) + " at epoch:" + str(epoch) + " ..")
         # init tqdm and get the epoch value
@@ -285,14 +290,16 @@ class TrainPsy(BasicTrain):
         # load the best model checkpoint to test on it
         if not pkl:
             self.load_best_model()
+        next_element = self.dataset_test_iterator.get_next()
 
         # init tqdm and get the epoch value
-        tt = tqdm(range(self.test_data_len))
+        tt = tqdm(range(1))
 
 
         # loop by the number of iterations
         for _ in tt:
-
+            next_batch = next_element
+            x_batch, y_batch = self.sess.run(next_batch)
             # Feed this variables to the network
             if self.args.random_cropping:
                 feed_dict = {self.test_model.x_pl_before: x_batch,
@@ -310,10 +317,11 @@ class TrainPsy(BasicTrain):
                 feed_dict=feed_dict)
 
             # Colored results for visualization
-            #colored_save_path = self.args.out_dir + 'imgs/' + str(self.names_mapper['Y'][idx])
-            #if not os.path.exists(os.path.dirname(colored_save_path)):
-            #    os.makedirs(os.path.dirname(colored_save_path))
-            #plt.imsave(colored_save_path, segmented_imgs[0])
+            for i, img in enumerate(segmented_imgs):
+                colored_save_path = self.args.out_dir + 'imgs/' + 'test_'+str(i) #str(self.names_mapper['Y'][idx])
+                if not os.path.exists(os.path.dirname(colored_save_path)):
+                   os.makedirs(os.path.dirname(colored_save_path))
+                plt.imsave(colored_save_path, segmented_imgs[0])
 
             # Results for official evaluation
             #save_path = self.args.out_dir + 'results/' + str(self.names_mapper['Y'][idx])
@@ -326,10 +334,8 @@ class TrainPsy(BasicTrain):
         # print in console
         tt.close()
 
-  
+
     def finalize(self):
         self.reporter.finalize()
         self.summary_writer.close()
         self.save_model()
-
- 
