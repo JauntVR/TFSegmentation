@@ -35,7 +35,6 @@ class Agent:
         # Get the class from globals by selecting it by arguments
         self.model = globals()[args.model]
         self.operator = globals()[args.operator]
-
         self.sess = None
 
     @timeit

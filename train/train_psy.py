@@ -68,18 +68,25 @@ class TrainPsy(BasicTrain):
         train_seq_folder = self.args.data_dir + 'train_seq'
         test_seq_folder = self.args.data_dir + 'test_seq'
         valid_seq_folder = test_seq_folder #TODO create validation folder
+
         self.train_dataset = load_dataset(train_seq_folder,
                                              self.args.batch_size,
                                              self.args.img_height,
-                                             self.args.img_width)
+                                             self.args.img_width,
+                                             self.args.num_channels,
+                                             self.args.num_classes)
         self.valid_dataset = load_dataset(valid_seq_folder,
                                              self.args.batch_size,
                                              self.args.img_height,
-                                             self.args.img_width)
+                                             self.args.img_width,
+                                             self.args.num_channels,
+                                             self.args.num_classes)
         self.test_dataset = load_dataset(test_seq_folder,
                                              self.args.batch_size,
                                              self.args.img_height,
-                                             self.args.img_width)
+                                             self.args.img_width,
+                                             self.args.num_channels,
+                                             self.args.num_classes)
 
         self.dataset_train_iterator = self.train_dataset.make_one_shot_iterator()
         self.dataset_valid_iterator = self.valid_dataset.make_one_shot_iterator()
