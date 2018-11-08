@@ -38,6 +38,39 @@ label_colours_global = [(255,255,255),  # 'nal'
                         #not a user
                         (72, 0, 255),]
 
+label_colours_reduced = [(255,255,255),  # 'nal'
+                        (255, 106, 0),  # 'body'
+                        (255, 0, 0),  # 'neck'
+                        #right arm upper
+                        (255, 178, 127),
+                        #right arm lower
+                        (218, 255, 127),
+                        #right hand
+                        (107, 63, 127),
+                        #left arm upper
+                        (255, 233, 127),
+                        #left arm lower
+                        (48, 48, 48),
+                        #left hand
+                        (63, 73, 127),
+                        #head
+                        (0, 255, 33),
+                        #hips
+                        (0, 255, 255),
+                        #right leg upper
+                        (0, 255, 144),
+                        #right leg lower
+                        (127, 201, 255),
+                        (165, 255, 127),
+                        (214, 127, 255),
+                        #left leg upper
+                        (178, 0, 255),
+                        #left leg lower
+                        (127, 255, 255),
+
+                        #not a user
+                        (72, 0, 255),]
+
 def decode_labels(mask, num_classes):
     """Decode batch of segmentation masks.
 
@@ -50,10 +83,14 @@ def decode_labels(mask, num_classes):
     """
 #    num_classes= num_classes+1
     # init colours array
-    colours = label_colours_global
-
+    if num_classes == 28:
+        colours = label_colours_global
+    elif num_classes == 16:
+        colours = label_colours_reduced
+    else:
+        assert (0 == 1), 'num_classes %d should be equal to either 28 or 16.' % (num_classes)
     # Check the length of the colours with num_classes
-    assert (num_classes == len(colours)), 'num_classes %d should be equal the number colours %d.' % (num_classes, len(colours))
+
     # Get the shape of the mask
     n, h, w = mask.shape
     n = min(n,3)

@@ -56,7 +56,7 @@ def parse_config():
     parser.add_argument('--h5_val_len', default=None, help='')
     parser.add_argument('--exp_dir', default=None, help='The experiment folder')
     parser.add_argument('--out_dir', default=None, help='The output folder')
-
+    parser.add_argument('--data_file', default=None, help='path+prefix for files contiaining h5 image paths')
     # Data arguments
     parser.add_argument('--img_height', default=None, type=int, help='Image height of the data')
     parser.add_argument('--img_width', default=None, type=int, help='Image width of the data')

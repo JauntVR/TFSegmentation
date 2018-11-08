@@ -6,7 +6,7 @@ import h5py
 import tensorflow as tf
 import numpy as np
 from train.basic_train import BasicTrain
-from data.data_load_psy import load_dataset
+from data.data_load_psy import load_dataset, _load_dataset
 from metrics.metrics import Metrics
 from utils.reporter import Reporter
 from utils.misc import timeit
@@ -16,7 +16,7 @@ from tqdm import tqdm
 from utils.augmentation import flip_randomly_left_right_image_with_annotation, \
     scale_randomly_image_with_annotation_with_fixed_size_output
 import scipy.misc as misc
-
+import time
 
 class TrainPsy(BasicTrain):
     """
@@ -65,28 +65,52 @@ class TrainPsy(BasicTrain):
         elif self.args.mode == 'test':
             self.reporter = Reporter(self.args.out_dir + 'report_test.json', self.args)
             ##################################################################################
-        train_seq_folder = self.args.data_dir + 'train_seq'
-        test_seq_folder = self.args.data_dir + 'test_seq'
-        valid_seq_folder = test_seq_folder #TODO create validation folder
+        if(self.args.data_file is None):
+            train_seq_folder = self.args.data_dir + 'train_seq'
+            test_seq_folder = self.args.data_dir + 'test_seq'
+            valid_seq_folder = test_seq_folder #TODO create validation folder
 
-        self.train_dataset = load_dataset(train_seq_folder,
-                                             self.args.batch_size,
-                                             self.args.img_height,
-                                             self.args.img_width,
-                                             self.args.num_channels,
-                                             self.args.num_classes)
-        self.valid_dataset = load_dataset(valid_seq_folder,
-                                             self.args.batch_size,
-                                             self.args.img_height,
-                                             self.args.img_width,
-                                             self.args.num_channels,
-                                             self.args.num_classes)
-        self.test_dataset = load_dataset(test_seq_folder,
-                                             self.args.batch_size,
-                                             self.args.img_height,
-                                             self.args.img_width,
-                                             self.args.num_channels,
-                                             self.args.num_classes)
+            self.train_dataset = _load_dataset(train_seq_folder,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+            self.valid_dataset = _load_dataset(valid_seq_folder,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+            self.test_dataset = _load_dataset(test_seq_folder,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+        else:
+            train_seq_file = self.args.data_file + '_train.txt'
+            test_seq_file = self.args.data_file + '_test.txt'
+            valid_seq_file = test_seq_file #TODO
+
+            self.train_dataset = load_dataset(train_seq_file,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+            self.test_dataset = load_dataset(test_seq_file,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+            self.valid_dataset = load_dataset(valid_seq_file,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
 
         self.dataset_train_iterator = self.train_dataset.make_one_shot_iterator()
         self.dataset_valid_iterator = self.valid_dataset.make_one_shot_iterator()
@@ -273,7 +297,8 @@ class TrainPsy(BasicTrain):
         self.reporter.report_experiment_statistics('validation-acc', 'epoch-' + str(epoch), str(total_acc))
 #        self.reporter.report_experiment_statistics('avg_inference_time_on_validation', 'epoch-' + str(epoch),
 #                                                   str(mean_inference))
-        self.reporter.report_experiment_validation_iou('epoch-' + str(epoch), str(mean_iou), mean_iou_arr)
+        #
+        #self.reporter.report_experiment_validation_iou('epoch-' + str(epoch), str(mean_iou), mean_iou_arr)
         self.reporter.finalize()
 
         # print in console
@@ -300,11 +325,11 @@ class TrainPsy(BasicTrain):
         next_element = self.dataset_test_iterator.get_next()
 
         # init tqdm and get the epoch value
-        tt = tqdm(range(1))
+        tt = tqdm(range(10))
 
 
         # loop by the number of iterations
-        for _ in tt:
+        for ind in tt:
             next_batch = next_element
             x_batch, y_batch = self.sess.run(next_batch)
             # Feed this variables to the network
@@ -318,17 +343,20 @@ class TrainPsy(BasicTrain):
                              }
 
             # run the feed_forward
+            a = time.time()
             out_argmax, segmented_imgs = self.sess.run(
                 [self.test_model.out_argmax,
                  self.test_model.segmented_summary],
                 feed_dict=feed_dict)
-
+            b = time.time()
+            print("time = ", b-a)
             # Colored results for visualization
             for i, img in enumerate(segmented_imgs):
-                colored_save_path = self.args.out_dir + 'imgs/' + 'test_'+str(i) #str(self.names_mapper['Y'][idx])
+                colored_save_path = self.args.out_dir + 'imgs/' + 'batch_'+str(ind)+'test_'+str(i) #str(self.names_mapper['Y'][idx])
                 if not os.path.exists(os.path.dirname(colored_save_path)):
                    os.makedirs(os.path.dirname(colored_save_path))
-                plt.imsave(colored_save_path, segmented_imgs[0])
+                import ipdb; ipdb.set_trace()
+                plt.imsave(colored_save_path, segmented_imgs[i])
 
             # Results for official evaluation
             #save_path = self.args.out_dir + 'results/' + str(self.names_mapper['Y'][idx])

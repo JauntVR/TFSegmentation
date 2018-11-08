@@ -1,14 +1,15 @@
 # Directories arguments
-data_dir: "../../volcap/SyntheticData/blender/outputs" #"synthetic_seq"
-exp_dir:  "unet_depthnet"
-out_dir:  "unet_depthnet"
+data_dir: "../../volcap/SyntheticData/blender/outputs/" #"synthetic_seq"
+exp_dir:  "unet_depthnet_16_labels_spicy_cam"
+out_dir:  "unet_depthnet_16_labels_spicy_cam"
+data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/spicy_cams"
 
 # Data arguments
 # image dimensions are reduced to enable run on my pc
 img_height:   200 #740
 img_width:    200 #1280
 num_channels: 1
-num_classes:  28
+num_classes:  16
 
 # Train arguments
 num_epochs: 400

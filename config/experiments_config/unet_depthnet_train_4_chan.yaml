@@ -1,18 +1,19 @@
 # Directories arguments
 data_dir: "../../volcap/SyntheticData/blender/outputs" #"synthetic_seq"
-exp_dir:  "unet_depthnet"
-out_dir:  "unet_depthnet"
+exp_dir:  "unet_depthnet_4_chan"
+out_dir:  "unet_depthnet_4_chan"
 
 # Data arguments
 # image dimensions are reduced to enable run on my pc
-img_height:   200 #740
-img_width:    200 #1280
-num_channels: 1
-num_classes:  28
+img_height:   370 #740
+img_width:    640 #1280
+num_channels: 4
+num_classes:  9
+r_labels: True
 
 # Train arguments
-num_epochs: 400
-batch_size: 8
+num_epochs: 200
+batch_size: 10
 train_data_len: 2000
 shuffle: True
 dropout_keep_prob: 0.95
@@ -33,3 +34,4 @@ batchnorm_enabled: True
 
 # Misc arguments
 verbose: False
+
