@@ -1,25 +1,25 @@
 # Directories arguments
-data_dir: "../../volcap/SyntheticData/blender/outputs/" #"synthetic_seq"
-exp_dir:  "unet_depthnet_16_labels_spicy_cam"
-out_dir:  "unet_depthnet_16_labels_spicy_cam"
-data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/spicy_cams"
+data_dir: "" #../../volcap/SyntheticData/blender/outputs/" #"synthetic_seq"
+exp_dir:  "unet_depthnet_17_noise"
+out_dir:  "unet_depthnet_17_noise"
+data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/8_cam_npy/img.npy"
 
 # Data arguments
 # image dimensions are reduced to enable run on my pc
 img_height:   200 #740
 img_width:    200 #1280
 num_channels: 1
-num_classes:  16
+num_classes:  17
 
 # Train arguments
-num_epochs: 600
+num_epochs: 60
 batch_size: 8
-train_data_len: 2000
+train_data_len: 44971
 shuffle: True
 dropout_keep_prob: 0.95
 data_mode: "experiment"
-save_every: 10
-test_every: 10
+save_every: 1
+test_every: 5
 max_to_keep: 2
 weighted_loss: False
 random_cropping: False

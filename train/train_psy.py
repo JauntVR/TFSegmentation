@@ -3,10 +3,11 @@ Trainer class to train Segmentation models
 """
 import os
 import h5py
+import csv
 import tensorflow as tf
 import numpy as np
 from train.basic_train import BasicTrain
-from data.data_load_psy import load_dataset, _load_dataset
+from data.data_load_psy import load_dataset, _load_dataset, load_dataset_file, load_dataset_npy_file, load_dataset_npy_dir_inference
 from metrics.metrics import Metrics
 from utils.reporter import Reporter
 from utils.misc import timeit
@@ -17,6 +18,7 @@ from utils.augmentation import flip_randomly_left_right_image_with_annotation, \
     scale_randomly_image_with_annotation_with_fixed_size_output
 import scipy.misc as misc
 import time
+from utils.img_utils import decode_labels
 
 class TrainPsy(BasicTrain):
     """
@@ -88,9 +90,10 @@ class TrainPsy(BasicTrain):
                                                  self.args.img_width,
                                                  self.args.num_channels,
                                                  self.args.num_classes)
-        else:
-            train_seq_file = self.args.data_file + '_train.txt'
-            test_seq_file = self.args.data_file + '_test.txt'
+        elif self.args.data_file.endswith('.png'):
+            dir = self.args.data_file.split('.')[0]
+            train_seq_file = dir + '_train.txt'
+            test_seq_file = dir + '_test.txt'
             valid_seq_file = test_seq_file #TODO
 
             self.train_dataset = load_dataset(train_seq_file,
@@ -106,6 +109,30 @@ class TrainPsy(BasicTrain):
                                                  self.args.num_channels,
                                                  self.args.num_classes)
             self.valid_dataset = load_dataset(valid_seq_file,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+        elif self.args.data_file.endswith('.npy'):
+            dir = self.args.data_file.split('.')[0]
+            train_seq_file = dir + '_train.txt'
+            test_seq_file = dir + '_test.txt'
+            valid_seq_file = test_seq_file #TODO
+
+            self.train_dataset = load_dataset_npy_file(train_seq_file,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+            self.test_dataset = load_dataset_npy_file(test_seq_file,
+                                                 self.args.batch_size,
+                                                 self.args.img_height,
+                                                 self.args.img_width,
+                                                 self.args.num_channels,
+                                                 self.args.num_classes)
+            self.valid_dataset = load_dataset_npy_file(valid_seq_file,
                                                  self.args.batch_size,
                                                  self.args.img_height,
                                                  self.args.img_width,
@@ -162,17 +189,17 @@ class TrainPsy(BasicTrain):
             for cur_iteration in tt:
                 # get the cur_it for the summary
                 cur_it = self.model.global_step_tensor.eval(self.sess)
+                if cur_it == 0:
+                    tf.train.write_graph(self.sess.graph.as_graph_def(), self.args.exp_dir, 'input_graph_def.pb')
                 next_batch = next_element
                 x_batch, y_batch = self.sess.run(next_batch)
-
                 # Feed this variables to the network
                 feed_dict = {self.model.x_pl: x_batch,
                              self.model.y_pl: y_batch,
                              self.model.is_training: True
                              #self.model.curr_learning_rate:curr_lr
                              }
-                save_image = (cur_iteration == self.num_iterations_training_per_epoch - 1) and \
-                             (cur_epoch % self.args.save_every == 0)
+                save_image = cur_iteration%200 == 0
                 if not save_image:
                     # run the feed_forward
                     _, loss, acc, summaries_merged = self.sess.run(
@@ -182,10 +209,22 @@ class TrainPsy(BasicTrain):
                     self.add_summary(cur_it, summaries_merged=summaries_merged)
                 else:
                     #also get images
-                    _, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
-                            [self.model.train_op, self.model.loss, self.model.accuracy,
+                    out_argmax, _, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
+                            [self.model.out_argmax, self.model.train_op, self.model.loss, self.model.accuracy,
                              self.model.merged_summaries, self.model.segmented_summary],
                              feed_dict=feed_dict)
+
+                    for i, img in enumerate(out_argmax):
+                        label = decode_labels(np.expand_dims(y_batch[i],0),self.args.num_classes)[0]
+                        color = decode_labels(np.expand_dims(img,0),self.args.num_classes)[0]
+                        colored_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' + str(cur_iteration) + '_' + str(i)+ '_argmax.png'
+                        depth_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' +  str(cur_iteration) + '_' + str(i)+ '_depth.png'
+                        label_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' + str(cur_iteration) + '_' + str(i)+ '_label.png'
+                        if not os.path.exists(os.path.dirname(colored_save_path)):
+                            os.makedirs(os.path.dirname(colored_save_path))
+                        plt.imsave(colored_save_path, color)
+                        plt.imsave(depth_save_path, np.squeeze(x_batch[i]))
+                        plt.imsave(label_save_path, label)
 
                 # log loss and acc
                 loss_list += [loss]
@@ -351,12 +390,17 @@ class TrainPsy(BasicTrain):
             b = time.time()
             print("time = ", b-a)
             # Colored results for visualization
-            for i, img in enumerate(segmented_imgs):
-                colored_save_path = self.args.out_dir + 'imgs/' + 'batch_'+str(ind)+'test_'+str(i) #str(self.names_mapper['Y'][idx])
+            for i, pred_img in enumerate(out_argmax):
+                true_img = y_batch[i]
+                out_img = np.concatenate((out_argmax[i],y_batch[i]),axis=1)
+                colored_save_path = self.args.out_dir + 'imgs/' + 'batch_'+str(ind)+'test_'+str(i)+'_labels' #str(self.names_mapper['Y'][idx])
+                depth_save_path = self.args.out_dir + 'imgs/' + 'batch_'+str(ind)+'test_'+str(i)+'_depth'
                 if not os.path.exists(os.path.dirname(colored_save_path)):
                    os.makedirs(os.path.dirname(colored_save_path))
-                import ipdb; ipdb.set_trace()
-                plt.imsave(colored_save_path, segmented_imgs[i])
+                plt.imsave(colored_save_path, out_img)
+                if not os.path.exists(os.path.dirname(depth_save_path)):
+                   os.makedirs(os.path.dirname(depth_save_path))
+                plt.imsave(depth_save_path, np.squeeze(x_batch[i]))
 
             # Results for official evaluation
             #save_path = self.args.out_dir + 'results/' + str(self.names_mapper['Y'][idx])
@@ -370,6 +414,214 @@ class TrainPsy(BasicTrain):
         tt.close()
 
 
+    def test(self, pkl=False):   #Runs the network on every single animation and measures the performance
+        # print("Testing mode will begin NOW..")
+        # files_dir = "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/front_cam_imgs/"
+        # out_file = "/jaunt/users/trevor/TFSegmentation/file_performance.txt"
+        # # load the best model f.write("\n".join(data))checkpoint to test on it
+        # data = []
+        # with open(out_file, 'w') as f:
+        #     for name in os.listdir(files_dir):
+        #         if name.endswith(".h5"):
+        #             file_dataset = load_dataset_file(files_dir+name,
+        #                                          self.args.batch_size,
+        #                                          self.args.img_height,
+        #                                          self.args.img_width,
+        #                                          self.args.num_channels,
+        #                                          self.args.num_classes)
+        #             file_dataset_iterator = file_dataset.make_one_shot_iterator()
+        #             next_element = file_dataset_iterator.get_next()
+        #
+        #             # init tqdm and get the epoch value
+        #             tt = tqdm(range(10))
+        #             loss_list = []
+        #             acc_list = []
+        #
+        #             # loop by the number of iterations
+        #             for ind in tt:
+        #                 next_batch = next_element
+        #                 x_batch, y_batch = self.sess.run(next_batch)
+        #
+        #                 feed_dict = {self.model.x_pl: x_batch,
+        #                              self.model.y_pl: y_batch,
+        #                              self.model.is_training: False
+        #                              }
+        #
+        #                 # run the feed_forward
+        #                 a = time.time()
+        #                 out_argmax, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
+        #                         [self.test_model.out_argmax,
+        #                          self.test_model.loss, self.model.accuracy,
+        #                          self.test_model.merged_summaries,
+        #                          self.test_model.test_segmented_summary],
+        #                          feed_dict=feed_dict)
+        #                 b = time.time()
+        #                 print("time = ", b-a)
+        #
+        #                 loss_list += [loss]
+        #                 acc_list += [acc]
+        #
+        #                 # log metrics
+        #                 self.metrics.update_metrics_batch(out_argmax, y_batch)
+        #
+        #             # mean over batches
+        #             total_acc = np.mean(acc_list)
+        #             total_loss = np.mean(loss)
+        #             mean_iou = self.metrics.compute_final_metrics(self.num_iterations_validation_per_epoch)
+        #             mean_iou_arr = self.metrics.iou
+        #             info = [name, total_acc, total_loss, mean_iou]
+        #             data.append(info)
+        #             f.write(','.join([str(x) for x in info])+'\n')
+        #             # print in console
+        #             tt.close()
+        # init tqdm and get the epoch value
+        tt = tqdm(range(int(2000/self.args.batch_size)),
+                  desc="Testing")
+        import ipdb; ipdb.set_trace()
+        # init acc and loss lists
+        loss_list = []
+        acc_list = []
+        no_bg_acc_list = []
+        # reset metrics
+        self.metrics.reset()
+
+        # get the maximum iou to compare with and save the best model
+        next_element = self.dataset_test_iterator.get_next()
+        # loop by the number of iterations
+        for cur_iteration in tt:
+            # Feed this variables to the network
+            next_batch = next_element
+            x_batch, y_batch = self.sess.run(next_batch)
+            feed_dict = {self.model.x_pl: x_batch,
+                         self.model.y_pl: y_batch,
+                         self.model.is_training: False
+                         }
+
+            # run the feed_forward
+            if cur_iteration < self.num_iterations_validation_per_epoch - 1:
+                out_argmax, loss, acc, summaries_merged = self.sess.run(
+                        [self.model.out_argmax,
+                         self.model.loss, self.model.accuracy,
+                         self.model.merged_summaries],
+                         feed_dict=feed_dict)
+            else:
+                out_argmax, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
+                        [self.test_model.out_argmax,
+                         self.test_model.loss, self.model.accuracy,
+                         self.test_model.merged_summaries,
+                         self.test_model.test_segmented_summary],
+                         feed_dict=feed_dict)
+            if cur_iteration % 50 == 0: #save images
+                for i, img in enumerate(out_argmax):
+                    label = decode_labels(np.expand_dims(y_batch[i],0),self.args.num_classes)[0]
+                    color = decode_labels(np.expand_dims(img,0),self.args.num_classes)[0]
+                    colored_save_path = self.args.out_dir + 'test_outputs/' + str(cur_iteration) + '_' + str(i)+ 'argmax.png'
+                    depth_save_path = self.args.out_dir + 'test_outputs/' + str(cur_iteration) + '_' + str(i)+ 'depth.png'
+                    label_save_path = self.args.out_dir + 'test_outputs/' + str(cur_iteration) + '_' + str(i)+ 'label.png'
+                    if not os.path.exists(os.path.dirname(colored_save_path)):
+                        os.makedirs(os.path.dirname(colored_save_path))
+                    plt.imsave(colored_save_path, color)
+                    plt.imsave(depth_save_path, np.squeeze(x_batch[i]))
+                    plt.imsave(label_save_path, label)
+
+            # log loss and acc
+            loss_list += [loss]
+            acc_list += [acc]
+            n_bg = np.sum(y_batch == 0)
+            a,b,c = y_batch.shape
+            n_tot = a*b*c
+            n_wrong = (1 - acc)*n_tot
+            no_bg_acc = 1 - n_wrong/(n_tot - n_bg)
+            no_bg_acc_list += [no_bg_acc]
+
+            # log metrics
+            self.metrics.update_metrics_batch(out_argmax, y_batch)
+
+        # mean over batches
+        total_acc = np.mean(acc_list)
+        total_no_bg_acc = np.mean(no_bg_acc_list)
+        mean_iou = self.metrics.compute_final_metrics(self.num_iterations_validation_per_epoch)
+        mean_iou_arr = self.metrics.iou
+
+
+        # print in console
+        tt.close()
+        print(no_bg_acc_list)
+        print(
+              "acc:" + str(total_acc)[:6] + "-mean_iou:" + str(mean_iou) + "-no_bg_acc:" + str(total_no_bg_acc))
+
+    def test_inference(self):
+        print("Inference mode will begin NOW..")
+        direct = 'raycast_real_data/'
+        files_dir = '/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/' + direct
+
+        data_iterator =  load_dataset_npy_dir_inference(files_dir, #self.args.data_file + '_test.txt',
+                                     self.args.batch_size,
+                                     self.args.img_height,
+                                     self.args.img_width,
+                                     self.args.num_channels,
+                                     self.args.num_classes)
+        dataset_iterator = data_iterator.make_one_shot_iterator()
+        next_element = dataset_iterator.get_next()
+
+        # init tqdm and get the epoch value
+        tt = tqdm(range(10))
+
+
+        # loop by the number of iterations
+        for ind in tt:
+            next_batch = next_element
+            x_batch, filenames = self.sess.run(next_batch)
+            # Feed this variables to the network
+            if self.args.random_cropping:
+                feed_dict = {self.test_model.x_pl_before: x_batch,
+                             self.test_model.is_training: False,
+                             }
+            else:
+                feed_dict = {self.test_model.x_pl: x_batch,
+                             self.test_model.is_training: False
+                             }
+
+            # run the feed_forward
+            a = time.time()
+            out_softmax, out_argmax, segmented_imgs = self.sess.run(
+                [self.test_model.out_softmax,
+                self.test_model.out_argmax,
+                 self.test_model.segmented_summary],
+                feed_dict=feed_dict)
+            b = time.time()
+            print("time = ", b-a)
+            # Colored results for visualization
+            for i, pred_img in enumerate(out_argmax):
+                f_name = "".join(filenames[i].decode('utf-8').split('/')[-1].split('.npy'))
+                out_img = decode_labels(np.expand_dims(pred_img,0),self.args.num_classes)
+                colored_save_path = self.args.out_dir + direct + f_name+'_labels_col.png' #str(self.names_mapper['Y'][idx])
+                softmax_save_path = self.args.out_dir + direct + f_name+'_softmax.npy' #str(self.names_mapper['Y'][idx])
+                conf_save_path = self.args.out_dir + direct + f_name+'_confidence.png'
+                depth_save_path = self.args.out_dir + direct + f_name+'_depth.png'
+                if not os.path.exists(os.path.dirname(colored_save_path)):
+                   os.makedirs(os.path.dirname(colored_save_path))
+                plt.imsave(colored_save_path, np.squeeze(out_img))
+                if not os.path.exists(os.path.dirname(depth_save_path)):
+                   os.makedirs(os.path.dirname(depth_save_path))
+                plt.imsave(depth_save_path, np.squeeze(x_batch[i]))
+                if not os.path.exists(os.path.dirname(softmax_save_path)):
+                   os.makedirs(os.path.dirname(softmax_save_path))
+                np.save(softmax_save_path, out_softmax[i])
+                if not os.path.exists(os.path.dirname(conf_save_path)):
+                   os.makedirs(os.path.dirname(conf_save_path))
+                plt.imsave(softmax_save_path, np.max(out_softmax[i], axis=2))
+
+            # Results for official evaluation
+            #save_path = self.args.out_dir + 'results/' + str(self.names_mapper['Y'][idx])
+            #if not os.path.exists(os.path.dirname(save_path)):
+            #    os.makedirs(os.path.dirname(save_path))
+            #output = postprocess(out_argmax[0])
+            #misc.imsave(save_path, misc.imresize(output, [1024, 2048], 'nearest'))
+
+
+        # print in console
+        tt.close()
     def finalize(self):
         self.reporter.finalize()
         self.summary_writer.close()

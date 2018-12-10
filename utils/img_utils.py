@@ -88,7 +88,7 @@ def decode_labels(mask, num_classes):
     elif num_classes == 16:
         colours = label_colours_reduced
     else:
-        assert (0 == 1), 'num_classes %d should be equal to either 28 or 16.' % (num_classes)
+        colours = label_colours_global[:num_classes]
     # Check the length of the colours with num_classes
 
     # Get the shape of the mask
