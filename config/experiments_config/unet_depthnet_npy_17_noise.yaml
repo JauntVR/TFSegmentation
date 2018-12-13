@@ -1,8 +1,10 @@
 # Directories arguments
-data_dir: "" #../../volcap/SyntheticData/blender/outputs/" #"synthetic_seq"
 exp_dir:  "unet_depthnet_17_noise"
 out_dir:  "unet_depthnet_17_noise"
-data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/8_cam_npy/img.npy"
+test_data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/8_cam_npy/img_test.txt"
+test_data_type: ".npy"
+train_data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/8_cam_npy/img_test.txt"
+train_data_type: '.npy'
 
 # Data arguments
 # image dimensions are reduced to enable run on my pc
@@ -24,6 +26,9 @@ max_to_keep: 2
 weighted_loss: False
 random_cropping: False
 freeze_encoder: False
+clip_width: 1000
+depth_range_min: 0
+depth_range_max: 255
 
 # Models arguments
 learning_rate:   0.0001

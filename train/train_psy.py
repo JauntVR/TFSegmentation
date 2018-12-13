@@ -7,7 +7,7 @@ import csv
 import tensorflow as tf
 import numpy as np
 from train.basic_train import BasicTrain
-from data.data_load_psy import load_dataset, _load_dataset, load_dataset_file, load_dataset_npy_file, load_dataset_npy_dir_inference
+from data.data_load_psy import load_dataset_w_labels, load_dataset_no_labels
 from metrics.metrics import Metrics
 from utils.reporter import Reporter
 from utils.misc import timeit
@@ -67,77 +67,21 @@ class TrainPsy(BasicTrain):
         elif self.args.mode == 'test':
             self.reporter = Reporter(self.args.out_dir + 'report_test.json', self.args)
             ##################################################################################
-        if(self.args.data_file is None):
-            train_seq_folder = self.args.data_dir + 'train_seq'
-            test_seq_folder = self.args.data_dir + 'test_seq'
-            valid_seq_folder = test_seq_folder #TODO create validation folder
+        train_seq_file = self.args.train_data_file
+        train_seq_type = self.args.train_data_type
+        test_seq_file = self.args.test_data_file
+        test_seq_type = self.args.test_data_type
+        if self.args.valid_data_file is not None:
+            valid_seq_file = self.args.valid_data_file
+            valid_seq_type = self.args.valid_data_type
+        else:
+            valid_seq_file = test_seq_file
+            valid_seq_type = test_seq_type
 
-            self.train_dataset = _load_dataset(train_seq_folder,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-            self.valid_dataset = _load_dataset(valid_seq_folder,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-            self.test_dataset = _load_dataset(test_seq_folder,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-        elif self.args.data_file.endswith('.png'):
-            dir = self.args.data_file.split('.')[0]
-            train_seq_file = dir + '_train.txt'
-            test_seq_file = dir + '_test.txt'
-            valid_seq_file = test_seq_file #TODO
+        self.train_dataset = load_dataset_w_labels(train_seq_file, train_seq_type, self.args)
+        self.valid_dataset = load_dataset_w_labels(valid_seq_file, valid_seq_type, self.args)
+        self.test_dataset = load_dataset_w_labels(test_seq_file, test_seq_type, self.args)
 
-            self.train_dataset = load_dataset(train_seq_file,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-            self.test_dataset = load_dataset(test_seq_file,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-            self.valid_dataset = load_dataset(valid_seq_file,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-        elif self.args.data_file.endswith('.npy'):
-            dir = self.args.data_file.split('.')[0]
-            train_seq_file = dir + '_train.txt'
-            test_seq_file = dir + '_test.txt'
-            valid_seq_file = test_seq_file #TODO
-
-            self.train_dataset = load_dataset_npy_file(train_seq_file,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-            self.test_dataset = load_dataset_npy_file(test_seq_file,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
-            self.valid_dataset = load_dataset_npy_file(valid_seq_file,
-                                                 self.args.batch_size,
-                                                 self.args.img_height,
-                                                 self.args.img_width,
-                                                 self.args.num_channels,
-                                                 self.args.num_classes)
 
         self.dataset_train_iterator = self.train_dataset.make_one_shot_iterator()
         self.dataset_valid_iterator = self.valid_dataset.make_one_shot_iterator()
@@ -188,43 +132,56 @@ class TrainPsy(BasicTrain):
             acc_list = []
             for cur_iteration in tt:
                 # get the cur_it for the summary
-                cur_it = self.model.global_step_tensor.eval(self.sess)
-                if cur_it == 0:
-                    tf.train.write_graph(self.sess.graph.as_graph_def(), self.args.exp_dir, 'input_graph_def.pb')
+                # cur_it = self.model.global_step_tensor.eval(self.sess)
+                # if cur_it == 0:
+                #     tf.train.write_graph(self.sess.graph.as_graph_def(), self.args.exp_dir, 'input_graph_def.pb')
+
                 next_batch = next_element
-                x_batch, y_batch = self.sess.run(next_batch)
-                # Feed this variables to the network
-                feed_dict = {self.model.x_pl: x_batch,
-                             self.model.y_pl: y_batch,
-                             self.model.is_training: True
-                             #self.model.curr_learning_rate:curr_lr
-                             }
+                if self.args.num_keypoints > 0:
+
+                    x_batch, y_batch, y_rough_kp, y_refined_kp = self.sess.run(next_batch)
+                    # Feed this variables to the network
+                    feed_dict = {self.model.x_pl: x_batch,
+                                 self.model.y_seg_pl: y_batch,
+                                 self.model.y_kp_rough_pl: y_rough_kp,
+                                 self.model.y_kp_refined_pl: y_refined_kp,
+                                 self.model.is_training: True
+                                 #self.model.curr_learning_rate:curr_lr
+                                 }
+                else:
+                    x_batch, y_batch= self.sess.run(next_batch)
+                    # Feed this variables to the network
+                    feed_dict = {self.model.x_pl: x_batch,
+                                 self.model.y_pl: y_batch,
+                                 self.model.is_training: True
+                                 #self.model.curr_learning_rate:curr_lr
+                                                     }
                 save_image = cur_iteration%200 == 0
-                if not save_image:
+                if not save_image or True:
                     # run the feed_forward
                     _, loss, acc, summaries_merged = self.sess.run(
                             [self.model.train_op, self.model.loss, self.model.accuracy,
                              self.model.merged_summaries],
                              feed_dict=feed_dict)
-                    self.add_summary(cur_it, summaries_merged=summaries_merged)
-                else:
-                    #also get images
-                    out_argmax, _, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
-                            [self.model.out_argmax, self.model.train_op, self.model.loss, self.model.accuracy,
-                             self.model.merged_summaries, self.model.segmented_summary],
-                             feed_dict=feed_dict)
-
-                    for i, img in enumerate(out_argmax):
-                        label = decode_labels(np.expand_dims(y_batch[i],0),self.args.num_classes)[0]
-                        color = decode_labels(np.expand_dims(img,0),self.args.num_classes)[0]
-                        colored_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' + str(cur_iteration) + '_' + str(i)+ '_argmax.png'
-                        depth_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' +  str(cur_iteration) + '_' + str(i)+ '_depth.png'
-                        label_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' + str(cur_iteration) + '_' + str(i)+ '_label.png'
-                        if not os.path.exists(os.path.dirname(colored_save_path)):
-                            os.makedirs(os.path.dirname(colored_save_path))
-                        plt.imsave(colored_save_path, color)
-                        plt.imsave(depth_save_path, np.squeeze(x_batch[i]))
-                        plt.imsave(label_save_path, label)
+                    #self.add_summary(cur_it, summaries_merged=summaries_merged)
+                # else:
+                #     #also get images
+                #     out_argmax, _, loss, acc, summaries_merged, segmented_imgs = self.sess.run(
+                #             [self.model.out_argmax, self.model.train_op, self.model.loss, self.model.accuracy,
+                #              self.model.merged_summaries, self.model.segmented_summary],
+                #              feed_dict=feed_dict)
+                #
+                #     for i, img in enumerate(out_argmax):
+                #         label = decode_labels(np.expand_dims(y_batch[i],0),self.args.num_classes)[0]
+                #         color = decode_labels(np.expand_dims(img,0),self.args.num_classes)[0]
+                #         colored_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' + str(cur_iteration) + '_' + str(i)+ '_argmax.png'
+                #         depth_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' +  str(cur_iteration) + '_' + str(i)+ '_depth.png'
+                #         label_save_path = self.args.out_dir + 'train_outputs/' + str(cur_epoch) + '_' + str(cur_iteration) + '_' + str(i)+ '_label.png'
+                #         if not os.path.exists(os.path.dirname(colored_save_path)):
+                #             os.makedirs(os.path.dirname(colored_save_path))
+                #         plt.imsave(colored_save_path, color)
+                #         plt.imsave(depth_save_path, np.squeeze(x_batch[i]))
+                #         plt.imsave(label_save_path, label)
 
                 # log loss and acc
                 loss_list += [loss]
@@ -475,9 +432,10 @@ class TrainPsy(BasicTrain):
         #             # print in console
         #             tt.close()
         # init tqdm and get the epoch value
+        if not pkl:
+            self.load_best_model()
         tt = tqdm(range(int(2000/self.args.batch_size)),
                   desc="Testing")
-        import ipdb; ipdb.set_trace()
         # init acc and loss lists
         loss_list = []
         acc_list = []
@@ -553,14 +511,11 @@ class TrainPsy(BasicTrain):
     def test_inference(self):
         print("Inference mode will begin NOW..")
         direct = 'raycast_real_data/'
-        files_dir = '/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/' + direct
+        seq_file = '/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/' + direct
+        file_type = 'folder.npy'
 
-        data_iterator =  load_dataset_npy_dir_inference(files_dir, #self.args.data_file + '_test.txt',
-                                     self.args.batch_size,
-                                     self.args.img_height,
-                                     self.args.img_width,
-                                     self.args.num_channels,
-                                     self.args.num_classes)
+        self.load_best_model()
+        data_iterator =  load_dataset_no_labels(seq_file, file_type, self.args)
         dataset_iterator = data_iterator.make_one_shot_iterator()
         next_element = dataset_iterator.get_next()
 

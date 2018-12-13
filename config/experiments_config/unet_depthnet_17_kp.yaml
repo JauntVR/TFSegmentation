@@ -1,7 +1,7 @@
 # Directories arguments
-data_dir: "" #../../volcap/SyntheticData/blender/outputs/" #"synthetic_seq"
-exp_dir:  "unet_depthnet_17"
-out_dir:  "unet_depthnet_17"
+base_data_dir: "" #../../volcap/SyntheticData/blender/outputs/" #"synthetic_seq"
+exp_dir:  "unet_depthnet_17_kp"
+out_dir:  "unet_depthnet_17_kp"
 test_data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/8_cam_npy/img_test.txt"
 test_data_type: ".npy"
 train_data_file: "/jaunt/users/trevor/volcap/SyntheticData/blender/outputs/8_cam_npy/img_test.txt"
@@ -13,10 +13,11 @@ img_height:   200 #740
 img_width:    200 #1280
 num_channels: 1
 num_classes:  17
+num_keypoints: 20
 
 # Train arguments
 num_epochs: 40
-batch_size: 8
+batch_size: 4
 train_data_len: 44971
 shuffle: True
 dropout_keep_prob: 0.95
@@ -30,8 +31,13 @@ random_cropping: False
 freeze_encoder: False
 add_gaussian_noise: False
 add_artifacts: False
-clip_width: 1000
-depth_range: (0,255)
+clip_width: 2000
+depth_range_min: 55
+depth_range_max: 255
+
+kp_label_width: 5
+kp_loss_weight_rough: 1
+kp_losses_refined: 1
 
 # Models arguments
 learning_rate:   0.0001

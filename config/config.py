@@ -44,7 +44,14 @@ def parse_config():
     parser.add_argument('model', default=None, help='Model class to operate on')
 
     # Directories arguments
-    parser.add_argument('--data_dir', default=None, help='The data folder')
+    parser.add_argument('--data_dir', default='/', help='The data directory')
+    parser.add_argument('--base_data_dir', default='', help='The base path for all of the paths contained in test_data_file and train_data_file')
+    parser.add_argument('--test_data_file', default=None, help='File containing paths to all test data')
+    parser.add_argument('--test_data_type', default=None, help='Test data format')
+    parser.add_argument('--train_data_file', default=None, help='File containing paths to all train data')
+    parser.add_argument('--train_data_type', default=None, help='Train data format')
+    parser.add_argument('--valid_data_file', default=None, help='File containing paths to all validation data')
+    parser.add_argument('--valid_data_type', default=None, help='Validation data format')
     parser.add_argument('--abs_data_dir', default=None, help='The data folder')
     parser.add_argument('--tfrecord_train_file', default=None, help='the tf_record to use it ')
     parser.add_argument('--tfrecord_val_file', default=None, help='the tf_record to use it ')
@@ -57,13 +64,17 @@ def parse_config():
     parser.add_argument('--exp_dir', default=None, help='The experiment folder')
     parser.add_argument('--out_dir', default=None, help='The output folder')
     parser.add_argument('--data_file', default=None, help='path+prefix for files contiaining h5 image paths')
+
     # Data arguments
     parser.add_argument('--img_height', default=None, type=int, help='Image height of the data')
     parser.add_argument('--img_width', default=None, type=int, help='Image width of the data')
     parser.add_argument('--num_channels', default=None, type=int, help='Num of channels of the image of the data')
     parser.add_argument('--num_classes', default=None, type=int, help='Num of classes of the data')
+    parser.add_argument('--num_keypoints', default=0, type=int, help='Number of keypoints in the data')
     parser.add_argument('--targets_resize', default=None, type=int, help='In case of experiment_v2 1/targets_resize will be the size of labels in training')
-
+    parser.add_argument('--clip_width', default=1000, type=int, help='Width around the mean (in mm) after which to clip the data')
+    parser.add_argument('--depth_range_min', default=0, type=int, help='Bottom of range into which input depth data is projected, must be within (0,255)')
+    parser.add_argument('--depth_range_max', default=255, type=int, help='Top of range into which input depth data is projected, must be within (0,255)')
     # Train arguments
     parser.add_argument('--num_epochs', default=2, type=int, help='number of epochs')
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
@@ -75,7 +86,11 @@ def parse_config():
     parser.add_argument('--weighted_loss', action='store_true', help='Flag to use weighted loss or not')
     parser.add_argument('--random_cropping', action='store_true', help='Flag to use random cropping or not')
     parser.add_argument('--freeze_encoder', action='store_true', help='Flag to freeze or train encoding layers')
-
+    parser.add_argument('--add_gaussian_noise', default=False, help='Add gaussian noise over all non-background depth values when training')
+    parser.add_argument('--add_artifacts', default=False, help='Add artifacts (holes and floaters) to the input depth data when trianing')
+    parser.add_argument('--kp_loss_weight_rough', type=float, default=1, help="weighting of rough kp loss relative to segmentation loss")
+    parser.add_argument('--kp_loss_weight_refined', type=float, default=1, help="weighting of refined kp loss relative to segmentation loss")
+    parser.add_argument('--kp_label_width', type=int, default=5, help="standard deviation of gaussian blobs representing keypoints in ground truth. Hard circles will have a width of twice this")
     # Test arguments
 
     # Models arguments
